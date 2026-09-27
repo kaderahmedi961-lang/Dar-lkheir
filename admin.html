@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحكم - دار الخير</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; direction: rtl; }
+    .navbar { background-color: #1a252f; color: white; padding: 15px 20px; display:flex; justify-content: space-between; align-items:center; }
+    .navbar h1 { font-size: 18px; color: #16a085; }
+    .navbar button { background:#c0392b; color:white; border:none; padding:8px 14px; border-radius:5px; cursor:pointer; font-weight:bold; }
+
+    .container { max-width: 800px; margin: 20px auto; padding: 0 15px; }
+    .section-box { background: white; padding: 20px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .section-box h2 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #16a085; padding-bottom: 10px; font-size: 18px; margin-bottom: 15px; }
+
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; font-family: inherit; }
+    .btn { background-color: #16a085; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; font-size: 15px; font-weight: bold; cursor: pointer; }
+    .btn:hover { background-color: #128a72; }
+
+    .item-row { border: 1px solid #eee; border-radius: 8px; padding: 12px 15px; margin-top: 10px; display:flex; justify-content: space-between; align-items:center; gap: 10px; }
+    .item-row .info { font-size: 13px; color: #444; line-height:1.5; }
+    .item-row .info b { color:#16a085; }
+    .btn-delete { background:#e74c3c; color:white; border:none; padding:6px 12px; border-radius:5px; font-size:12px; cursor:pointer; white-space:nowrap; }
+
+    #loginBox { max-width: 380px; margin: 80px auto; }
+    #dashboard { display:none; }
+    .msg { font-size: 13px; margin-top:8px; }
+    .msg.error { color:#c0392b; }
+    .msg.ok { color:#16a085; }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+    <h1>لوحة تحكم دار الخير 🇲🇷</h1>
+    <button id="logoutBtn" style="display:none;" onclick="logout()">تسجيل الخروج</button>
+</nav>
+
+<div class="container">
+
+    <!-- تسجيل الدخول -->
+    <div id="loginBox" class="section-box">
+        <h2>تسجيل دخول المشرف</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label>البريد الإلكتروني</label>
+                <input type="email" id="loginEmail" required>
+            </div>
+            <div class="form-group">
+                <label>كلمة المرور</label>
+                <input type="password" id="loginPassword" required>
+            </div>
+            <button type="submit" class="btn">دخول</button>
+            <p id="loginMsg" class="msg error"></p>
+        </form>
+    </div>
+
+    <!-- لوحة التحكم -->
+    <div id="dashboard">
+
+        <section class="section-box">
+            <h2>➕ إضافة حالة إنسانية جديدة</h2>
+            <form id="caseForm">
+                <div class="form-group">
+                    <label>عنوان الحالة</label>
+                    <input type="text" id="caseTitle" required>
+                </div>
+                <div class="form-group">
+                    <label>الوصف</label>
+                    <textarea id="caseDesc" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>رابط صورة (اختياري)</label>
+                    <input type="url" id="caseImage" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>رقم الحساب البنكي / Bankily للتبرع المباشر</label>
+                    <input type="text" id="caseBank" required>
+                </div>
+                <button type="submit" class="btn">إضافة الحالة</button>
+                <p id="caseMsg" class="msg"></p>
+            </form>
+        </section>
+
+        <section class="section-box">
+            <h2>📋 الحالات الحالية</h2>
+            <div id="casesList">جاري التحميل...</div>
+        </section>
+
+        <section class="section-box">
+            <h2>🩸 المتبرعون المسجلون</h2>
+            <div id="donorsList">جاري التحميل...</div>
+        </section>
+
+    </div>
+</div>
+
+<script>
+    const SUPABASE_URL = "https://vhixyrqkinwjyoshbpvv.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_dimX9cokWQAi8QdZ4n09Kg_pwx_cNpk";
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // ---------- تسجيل الدخول ----------
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const msg = document.getElementById('loginMsg');
+        msg.textContent = '';
+
+        const { error } = await _supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+            msg.textContent = 'بيانات الدخول غير صحيحة.';
+            return;
+        }
+        showDashboard();
+    });
+
+    async function logout() {
+        await _supabase.auth.signOut();
+        location.reload();
+    }
+
+    async function checkSession() {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (session) showDashboard();
+    }
+
+    function showDashboard() {
+        document.getElementById('loginBox').style.display = 'none';
+        document.getElementById('dashboard').style.display = 'block';
+        document.getElementById('logoutBtn').style.display = 'inline-block';
+        loadCases();
+        loadDonors();
+    }
+
+    // ---------- إضافة حالة ----------
+    document.getElementById('caseForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const caseMsg = document.getElementById('caseMsg');
+        caseMsg.className = 'msg';
+        caseMsg.textContent = '';
+
+        const title = document.getElementById('caseTitle').value.trim();
+        const description = document.getElementById('caseDesc').value.trim();
+        const image_url = document.getElementById('caseImage').value.trim() || null;
+        const bank_account = document.getElementById('caseBank').value.trim();
+
+        const { error } = await _supabase.from('cases').insert({ title, description, image_url, bank_account });
+
+        if (error) {
+            caseMsg.classList.add('error');
+            caseMsg.textContent = 'حدث خطأ: ' + error.message;
+            return;
+        }
+        caseMsg.classList.add('ok');
+        caseMsg.textContent = 'تمت إضافة الحالة بنجاح.';
+        this.reset();
+        loadCases();
+    });
+
+    // ---------- عرض الحالات ----------
+    async function loadCases() {
+        const { data, error } = await _supabase.from('cases').select('*').order('id', { ascending: false });
+        const box = document.getElementById('casesList');
+        box.innerHTML = '';
+        if (error || !data || data.length === 0) {
+            box.innerHTML = '<p>لا توجد حالات حالياً.</p>';
+            return;
+        }
+        data.forEach(c => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+
+            const info = document.createElement('div');
+            info.className = 'info';
+            const b = document.createElement('b');
+            b.textContent = c.title;
+            info.appendChild(b);
+            info.appendChild(document.createElement('br'));
+            info.appendChild(document.createTextNode(c.description.slice(0, 60) + (c.description.length > 60 ? '…' : '')));
+            row.appendChild(info);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete';
+            delBtn.textContent = 'حذف';
+            delBtn.onclick = () => deleteCase(c.id);
+            row.appendChild(delBtn);
+
+            box.appendChild(row);
+        });
+    }
+
+    async function deleteCase(id) {
+        if (!confirm('هل تريد حذف هذه الحالة؟')) return;
+        await _supabase.from('cases').delete().eq('id', id);
+        loadCases();
+    }
+
+    // ---------- عرض المتبرعين ----------
+    async function loadDonors() {
+        const { data, error } = await _supabase.from('donors').select('*').order('id', { ascending: false });
+        const box = document.getElementById('donorsList');
+        box.innerHTML = '';
+        if (error || !data || data.length === 0) {
+            box.innerHTML = '<p>لا يوجد متبرعون مسجلون.</p>';
+            return;
+        }
+        data.forEach(d => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+
+            const info = document.createElement('div');
+            info.className = 'info';
+            const b = document.createElement('b');
+            b.textContent = d.full_name + ' (' + d.blood_type + ')';
+            info.appendChild(b);
+            info.appendChild(document.createElement('br'));
+            info.appendChild(document.createTextNode(d.city + ' - ' + d.phone_number));
+            row.appendChild(info);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn-delete';
+            delBtn.textContent = 'حذف';
+            delBtn.onclick = () => deleteDonor(d.id);
+            row.appendChild(delBtn);
+
+            box.appendChild(row);
+        });
+    }
+
+    async function deleteDonor(id) {
+        if (!confirm('هل تريد حذف هذا المتبرع؟')) return;
+        await _supabase.from('donors').delete().eq('id', id);
+        loadDonors();
+    }
+
+    checkSession();
+</script>
+</body>
+</html>
